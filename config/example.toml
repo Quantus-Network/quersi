@@ -12,3 +12,6 @@ level = "info"
 [remote_configs]
 # Paths relative to this TOML file are resolved against the TOML directory.
 wallet_configs_file = "../wallet_config.json"
+
+# Docker / IAC: use config/docker.toml (binds 0.0.0.0) and bind-mount
+# wallet_config.json at /app/wallet_config.json on the host.

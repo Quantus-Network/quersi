@@ -45,7 +45,7 @@ Payload is opaque JSON: add or change keys by updating the file — no service r
 
 ```bash
 cargo run -- --config config/default.toml
-# GET http://127.0.0.1:8080/api/configs/wallet
+# GET http://127.0.0.1:6767/api/configs/wallet
 ```
 
 ## Hot reload
@@ -59,7 +59,7 @@ Startup **fails hard** if the initial file is missing or invalid.
 
 ## Configuration
 
-See [`config/example.toml`](config/example.toml).
+See [`config/example.toml`](config/example.toml) (local) and [`config/docker.toml`](config/docker.toml) (containers).
 
 Environment overrides use the `REMOTE_CONFIG` prefix and `__` separator, e.g.:
 
@@ -70,15 +70,20 @@ REMOTE_CONFIG__REMOTE_CONFIGS__WALLET_CONFIGS_FILE=/path/to/flags.json
 
 ## Docker
 
+The image ships the binary only. Mount host-managed TOML and JSON at runtime (same pattern IAC should use).
+
 ```bash
 docker build -t remote-config .
-docker run --rm -p 8080:8080 \
-  -v "$(pwd)/configs:/app/configs:ro" \
-  -v "$(pwd)/config/default.toml:/app/config/default.toml:ro" \
+docker run --rm -p 6767:6767 \
+  -v "$(pwd)/wallet_config.json:/app/wallet_config.json:ro" \
+  -v "$(pwd)/config/docker.toml:/app/config/docker.toml:ro" \
   remote-config
 ```
 
-The image runs as a non-root user. Mount configs **read-only**.
+- Default command: `--config config/docker.toml` (expects that path to be mounted; listens on `0.0.0.0:6767`)
+- Mount `wallet_config.json` at `/app/wallet_config.json` (path from the TOML)
+- Mount configs **read-only**; the image runs as uid `10001`
+- If host files are mode `0640`, run the container as the file owner (IAC pattern: set `user:` to the admin UID) so the process can read them
 
 ## Development
 
