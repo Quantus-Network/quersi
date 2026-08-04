@@ -1,4 +1,4 @@
-# remote-config
+# Quersi (QRC) - Quantus Remote Config
 
 Minimal Axum service that serves wallet feature flags over HTTP.
 
