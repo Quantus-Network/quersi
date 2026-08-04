@@ -1,0 +1,13 @@
+[server]
+# Bind all interfaces so published Docker ports reach the service.
+host = "0.0.0.0"
+port = 6767
+cors_allowed_origins = []
+
+[logging]
+level = "info"
+
+[remote_configs]
+# Resolved relative to this TOML file → /app/wallet_config.json when mounted.
+# Mount the host-managed flags file at that path (see README Docker section).
+wallet_configs_file = "../wallet_config.json"

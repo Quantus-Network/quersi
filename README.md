@@ -2,8 +2,6 @@
 
 Minimal Axum service that serves wallet feature flags over HTTP.
 
-This is a standalone extract of the wallet remote-config feature from `task-master`. **task-master is unchanged** and continues to serve its own copy until clients cut over.
-
 ## Design
 
 Feature flags are intentionally **public to read**. There is **no write/admin HTTP API** — updates are done by replacing the JSON file on disk (hot-reloaded).
@@ -11,11 +9,11 @@ Feature flags are intentionally **public to read**. There is **no write/admin HT
 Signing config files does not help against a compromised host: anyone who can replace the service binary (or its config) can serve arbitrary responses anyway. Trust is host/deploy integrity, not a signature on the JSON.
 
 ```text
-Operator/CI --> config.json --> VPS mount
-                              |
-                    remote-config (load / hot-reload)
-                              |
-                    GET /api/configs/wallet
+Operator/CI --> wallet_config.json --> VPS mount
+                                    |
+                          remote-config (load / hot-reload)
+                                    |
+                          GET /api/configs/wallet
 ```
 
 ## API
@@ -23,9 +21,9 @@ Operator/CI --> config.json --> VPS mount
 | Method | Path | Auth | Response |
 |--------|------|------|----------|
 | `GET` | `/api/configs/wallet` | none | `{ "data": { ...flags } }` |
-| `GET` | `/health` | none | `200` if a config is loaded |
+| `GET` | `/health` | none | `{ "healthy": true, "service": "RemoteConfig", "version": "…" }` |
 
-Example payload:
+Example wallet payload:
 
 ```json
 {
@@ -41,11 +39,17 @@ Example payload:
 
 Payload is opaque JSON: add or change keys by updating the file — no service redeploy required. Only invalid JSON is rejected.
 
+CORS is off by default (`cors_allowed_origins = []`). Set origins in TOML when browser clients need cross-origin access.
+
 ## Quick start
 
+`wallet_config.json` is gitignored (host-managed). Copy the example first:
+
 ```bash
+cp wallet_config.example.json wallet_config.json
 cargo run -- --config config/default.toml
 # GET http://127.0.0.1:6767/api/configs/wallet
+# GET http://127.0.0.1:6767/health
 ```
 
 ## Hot reload
@@ -59,7 +63,18 @@ Startup **fails hard** if the initial file is missing or invalid.
 
 ## Configuration
 
-See [`config/example.toml`](config/example.toml) (local) and [`config/docker.toml`](config/docker.toml) (containers).
+| File | Purpose |
+|------|---------|
+| [`config/default.toml`](config/default.toml) | Local defaults (`127.0.0.1:6767`) |
+| [`config/docker.toml.example`](config/docker.toml.example) | Container template (`0.0.0.0:6767`) |
+
+Paths in TOML that are relative are resolved against the TOML file’s directory.
+
+`config/docker.toml` and `wallet_config.json` are gitignored — create them on the host (or in CI) and bind-mount them. For containers:
+
+```bash
+cp config/docker.toml.example config/docker.toml
+```
 
 Environment overrides use the `REMOTE_CONFIG` prefix and `__` separator, e.g.:
 
@@ -73,6 +88,9 @@ REMOTE_CONFIG__REMOTE_CONFIGS__WALLET_CONFIGS_FILE=/path/to/flags.json
 The image ships the binary only. Mount host-managed TOML and JSON at runtime (same pattern IAC should use).
 
 ```bash
+cp config/docker.toml.example config/docker.toml
+cp wallet_config.example.json wallet_config.json
+
 docker build -t remote-config .
 docker run --rm -p 6767:6767 \
   -v "$(pwd)/wallet_config.json:/app/wallet_config.json:ro" \
