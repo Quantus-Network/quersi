@@ -1,0 +1,14 @@
+[server]
+host = "127.0.0.1"
+port = 6767
+# Browser origins allowed for CORS. Leave empty for non-browser clients.
+# Example: cors_allowed_origins = ["https://wallet.example.com"]
+cors_allowed_origins = []
+
+[logging]
+# Override with REMOTE_CONFIG__LOGGING__LEVEL
+level = "info"
+
+[remote_configs]
+# Paths relative to this TOML file are resolved against the TOML directory.
+wallet_configs_file = "../wallet_config.json"

@@ -1,0 +1,10 @@
+[server]
+host = "127.0.0.1"
+port = 6767
+cors_allowed_origins = []
+
+[logging]
+level = "info"
+
+[remote_configs]
+wallet_configs_file = "../wallet_config.json"

@@ -1,0 +1,26 @@
+# Rust
+target
+
+# Node.js
+node_modules
+lib
+builds
+
+# Configs
+.idea
+config/prod.toml
+.env
+.DS_Store
+.cursor
+wallet_config.json
+
+# Runtime data
+**/data/block-cursor.json
+**/data/block-cursor.json.tmp
+stress-data/
+
+# Secrets
+.env.docker
+**/docker.toml
+**/firebase-service-account.json
+

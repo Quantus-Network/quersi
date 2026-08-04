@@ -1,0 +1,29 @@
+[package]
+name = "remote-config"
+version = "0.1.0"
+edition = "2021"
+description = "Minimal remote-config service for wallet feature flags"
+license = "Apache-2.0"
+default-run = "remote-config"
+
+[[bin]]
+name = "remote-config"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0"
+axum = { version = "0.8", features = ["tokio"] }
+clap = { version = "4.5", features = ["derive"] }
+config = "0.14"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tokio = { version = "1.46", features = ["full"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.6", features = ["v4"] }
+
+[dev-dependencies]
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
