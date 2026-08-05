@@ -10,6 +10,7 @@ pub struct Config {
     pub server: ServerConfig,
     pub logging: LoggingConfig,
     pub remote_configs: RemoteConfigsConfig,
+    pub exchange_rate: ExchangeRateConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,6 +28,11 @@ pub struct LoggingConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RemoteConfigsConfig {
     pub wallet_configs_file: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExchangeRateConfig {
+    pub api_key: String,
 }
 
 impl Config {

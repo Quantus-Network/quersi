@@ -2,7 +2,7 @@ use axum::{extract::State, response::IntoResponse, Json};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::{error::AppError, AppState};
+use crate::{error::AppError, services::exchange_rate::ExchangeRateSnapshot, AppState};
 
 #[derive(Debug, Serialize)]
 pub struct SuccessResponse<T> {
@@ -20,6 +20,13 @@ pub async fn handle_get_wallet_configs(
 ) -> Result<Json<SuccessResponse<Value>>, AppError> {
     let flags = state.wallet_config_service.get_wallet_configs()?;
     Ok(Json(SuccessResponse::new(flags)))
+}
+
+pub async fn handle_get_exchange_rate(
+    State(state): State<AppState>,
+) -> Result<Json<SuccessResponse<ExchangeRateSnapshot>>, AppError> {
+    let snapshot = state.exchange_rate_service.get_snapshot().await?;
+    Ok(Json(SuccessResponse::new(snapshot)))
 }
 
 pub async fn handle_health() -> impl IntoResponse {

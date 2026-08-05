@@ -1,6 +1,6 @@
 # Quersi (QRC) - Quantus Remote Config
 
-Minimal Axum service that serves wallet feature flags over HTTP.
+Minimal Axum service that serves wallet feature flags and USD exchange rates over HTTP.
 
 ## Design
 
@@ -14,6 +14,8 @@ Operator/CI --> wallet_config.json --> VPS mount
                           remote-config (load / hot-reload)
                                     |
                           GET /api/configs/wallet
+
+ExchangeRate-API v6  -->  in-memory cache  -->  GET /api/exchange-rates
 ```
 
 ## API
@@ -21,6 +23,7 @@ Operator/CI --> wallet_config.json --> VPS mount
 | Method | Path | Auth | Response |
 |--------|------|------|----------|
 | `GET` | `/api/configs/wallet` | none | `{ "data": { ...flags } }` |
+| `GET` | `/api/exchange-rates` | none | `{ "data": { "conversion_rates": { ... }, "time_next_update_unix": … } }` |
 | `GET` | `/health` | none | `{ "healthy": true, "service": "RemoteConfig", "version": "…" }` |
 
 Example wallet payload:
@@ -39,6 +42,8 @@ Example wallet payload:
 
 Payload is opaque JSON: add or change keys by updating the file — no service redeploy required. Only invalid JSON is rejected.
 
+Exchange rates are fetched from [ExchangeRate-API](https://www.exchangerate-api.com/) (v6, USD base) and cached in memory until `time_next_update_unix`.
+
 CORS is off by default (`cors_allowed_origins = []`). Set origins in TOML when browser clients need cross-origin access.
 
 ## Quick start
@@ -49,6 +54,7 @@ CORS is off by default (`cors_allowed_origins = []`). Set origins in TOML when b
 cp wallet_config.example.json wallet_config.json
 cargo run -- --config config/default.toml
 # GET http://127.0.0.1:6767/api/configs/wallet
+# GET http://127.0.0.1:6767/api/exchange-rates
 # GET http://127.0.0.1:6767/health
 ```
 
@@ -81,6 +87,7 @@ Environment overrides use the `REMOTE_CONFIG` prefix and `__` separator, e.g.:
 ```bash
 REMOTE_CONFIG__SERVER__PORT=9090
 REMOTE_CONFIG__REMOTE_CONFIGS__WALLET_CONFIGS_FILE=/path/to/flags.json
+REMOTE_CONFIG__EXCHANGE_RATE__API_KEY=your-key
 ```
 
 ## Docker
@@ -93,6 +100,7 @@ cp wallet_config.example.json wallet_config.json
 
 docker build -t remote-config .
 docker run --rm -p 6767:6767 \
+  -e REMOTE_CONFIG__EXCHANGE_RATE__API_KEY=your-key \
   -v "$(pwd)/wallet_config.json:/app/wallet_config.json:ro" \
   -v "$(pwd)/config/docker.toml:/app/config/docker.toml:ro" \
   remote-config
@@ -102,6 +110,7 @@ docker run --rm -p 6767:6767 \
 - Mount `wallet_config.json` at `/app/wallet_config.json` (path from the TOML)
 - Mount configs **read-only**; the image runs as uid `10001`
 - If host files are mode `0640`, run the container as the file owner (IAC pattern: set `user:` to the admin UID) so the process can read them
+- Set `REMOTE_CONFIG__EXCHANGE_RATE__API_KEY` (or put the key in the mounted TOML)
 
 ## Development
 

@@ -11,3 +11,8 @@ level = "info"
 # Resolved relative to this TOML file → /app/wallet_config.json when mounted.
 # Mount the host-managed flags file at that path (see README Docker section).
 wallet_configs_file = "../wallet_config.json"
+
+[exchange_rate]
+# https://www.exchangerate-api.com/ — v6 key for latest/{base} rates
+# Prefer REMOTE_CONFIG__EXCHANGE_RATE__API_KEY in production.
+api_key = "change-me"

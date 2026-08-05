@@ -2,7 +2,7 @@
 name = "remote-config"
 version = "0.1.0"
 edition = "2021"
-description = "Minimal remote-config service for wallet feature flags"
+description = "Minimal remote-config service for wallet feature flags and exchange rates"
 license = "Apache-2.0"
 default-run = "remote-config"
 
@@ -15,6 +15,7 @@ anyhow = "1.0"
 axum = { version = "0.8", features = ["tokio"] }
 clap = { version = "4.5", features = ["derive"] }
 config = "0.14"
+reqwest = { version = "0.12", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0"
@@ -27,3 +28,4 @@ uuid = { version = "1.6", features = ["v4"] }
 [dev-dependencies]
 http-body-util = "0.1"
 tower = { version = "0.5", features = ["util"] }
+wiremock = "0.6"
