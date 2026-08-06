@@ -1,8 +1,19 @@
-use axum::{extract::State, response::IntoResponse, Json};
+use axum::{
+    extract::{Path, State},
+    response::IntoResponse,
+    Json,
+};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::{error::AppError, services::exchange_rate::ExchangeRateSnapshot, AppState};
+use crate::{
+    error::AppError,
+    services::{
+        exchange_rate::ExchangeRateSnapshot,
+        risk_checker::{RiskCheckerError, RiskCheckerService, RiskReport},
+    },
+    AppState,
+};
 
 #[derive(Debug, Serialize)]
 pub struct SuccessResponse<T> {
@@ -27,6 +38,24 @@ pub async fn handle_get_exchange_rate(
 ) -> Result<Json<SuccessResponse<ExchangeRateSnapshot>>, AppError> {
     let snapshot = state.exchange_rate_service.get_snapshot().await?;
     Ok(Json(SuccessResponse::new(snapshot)))
+}
+
+pub async fn handle_get_risk_report(
+    State(state): State<AppState>,
+    Path(address_or_ens): Path<String>,
+) -> Result<Json<SuccessResponse<RiskReport>>, AppError> {
+    if !RiskCheckerService::is_valid_eth_address(&address_or_ens)
+        && !RiskCheckerService::is_ens_name(&address_or_ens)
+    {
+        return Err(RiskCheckerError::InvalidInput.into());
+    }
+
+    let report = state
+        .risk_checker_service
+        .generate_report(&address_or_ens)
+        .await?;
+
+    Ok(Json(SuccessResponse::new(report)))
 }
 
 pub async fn handle_health() -> impl IntoResponse {

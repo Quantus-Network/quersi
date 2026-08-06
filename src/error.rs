@@ -6,7 +6,10 @@ use axum::{
 use serde_json::json;
 use thiserror::Error;
 
-use crate::services::{exchange_rate::ExchangeRateError, wallet_config::WalletConfigsError};
+use crate::services::{
+    exchange_rate::ExchangeRateError, risk_checker::RiskCheckerError,
+    wallet_config::WalletConfigsError,
+};
 
 #[derive(Debug, Error)]
 pub enum ConfigError {
@@ -22,6 +25,8 @@ pub enum AppError {
     WalletConfigs(#[from] WalletConfigsError),
     #[error(transparent)]
     ExchangeRate(#[from] ExchangeRateError),
+    #[error(transparent)]
+    RiskChecker(#[from] RiskCheckerError),
 }
 
 impl IntoResponse for AppError {
@@ -36,6 +41,7 @@ impl IntoResponse for AppError {
                 "wallet configs unavailable".to_string(),
             ),
             AppError::ExchangeRate(err) => map_exchange_rate_error(err),
+            AppError::RiskChecker(err) => map_risk_checker_error(err),
         };
 
         (status, Json(json!({ "error": message }))).into_response()
@@ -67,6 +73,29 @@ fn map_exchange_rate_error(err: &ExchangeRateError) -> (StatusCode, String) {
         }
         ExchangeRateError::Cache(detail) => {
             tracing::error!("Exchange rate cache error: {detail}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "An internal server error occurred".to_string(),
+            )
+        }
+    }
+}
+
+fn map_risk_checker_error(err: &RiskCheckerError) -> (StatusCode, String) {
+    match err {
+        RiskCheckerError::InvalidInput => (StatusCode::BAD_REQUEST, err.to_string()),
+        RiskCheckerError::EnsNotFound(name) => (
+            StatusCode::NOT_FOUND,
+            format!(
+                "The ENS name \"{}\" could not be resolved to an Ethereum address. Please verify the .eth name is correct.",
+                name
+            ),
+        ),
+        RiskCheckerError::AddressNotFound => (StatusCode::NOT_FOUND, err.to_string()),
+        RiskCheckerError::RateLimit => (StatusCode::TOO_MANY_REQUESTS, err.to_string()),
+        RiskCheckerError::NetworkError => (StatusCode::SERVICE_UNAVAILABLE, err.to_string()),
+        RiskCheckerError::Other(msg) => {
+            tracing::error!("Risk checker error: {msg}");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "An internal server error occurred".to_string(),

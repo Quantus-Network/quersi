@@ -7,4 +7,7 @@ pub mod services;
 pub use config::Config;
 pub use error::AppError;
 pub use http::{build_router, AppState};
-pub use services::{exchange_rate::ExchangeRateService, wallet_config::WalletConfigService};
+pub use services::{
+    exchange_rate::ExchangeRateService, risk_checker::RiskCheckerService,
+    wallet_config::WalletConfigService,
+};

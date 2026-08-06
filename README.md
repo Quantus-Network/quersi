@@ -1,6 +1,6 @@
 # Quersi (QRC) - Quantus Remote Config
 
-Minimal Axum service that serves wallet feature flags and USD exchange rates over HTTP.
+Minimal Axum service that serves wallet feature flags, USD exchange rates, and Ethereum address risk reports over HTTP.
 
 ## Design
 
@@ -16,6 +16,8 @@ Operator/CI --> wallet_config.json --> VPS mount
                           GET /api/configs/wallet
 
 ExchangeRate-API v6  -->  in-memory cache  -->  GET /api/exchange-rates
+
+Infura (ENS) + Etherscan  -->  GET /api/risk-checker/{address_or_ens}
 ```
 
 ## API
@@ -24,6 +26,7 @@ ExchangeRate-API v6  -->  in-memory cache  -->  GET /api/exchange-rates
 |--------|------|------|----------|
 | `GET` | `/api/configs/wallet` | none | `{ "data": { ...flags } }` |
 | `GET` | `/api/exchange-rates` | none | `{ "data": { "conversion_rates": { ... }, "time_next_update_unix": … } }` |
+| `GET` | `/api/risk-checker/{address_or_ens}` | none | `{ "data": { "address", "ensName", "balance", … } }` |
 | `GET` | `/health` | none | `{ "healthy": true, "service": "RemoteConfig", "version": "…" }` |
 
 Example wallet payload:
@@ -44,6 +47,8 @@ Payload is opaque JSON: add or change keys by updating the file — no service r
 
 Exchange rates are fetched from [ExchangeRate-API](https://www.exchangerate-api.com/) (v6, USD base) and cached in memory until `time_next_update_unix`.
 
+Risk reports resolve an Ethereum address or `.eth` ENS name (via Infura) and fetch balance / transaction / contract data from Etherscan. Invalid input returns `400`; unresolved ENS or missing address data returns `404`; upstream rate limits return `429`.
+
 CORS is off by default (`cors_allowed_origins = []`). Set origins in TOML when browser clients need cross-origin access.
 
 ## Quick start
@@ -55,6 +60,7 @@ cp wallet_config.example.json wallet_config.json
 cargo run -- --config config/default.toml
 # GET http://127.0.0.1:6767/api/configs/wallet
 # GET http://127.0.0.1:6767/api/exchange-rates
+# GET http://127.0.0.1:6767/api/risk-checker/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
 # GET http://127.0.0.1:6767/health
 ```
 
@@ -88,6 +94,8 @@ Environment overrides use the `REMOTE_CONFIG` prefix and `__` separator, e.g.:
 REMOTE_CONFIG__SERVER__PORT=9090
 REMOTE_CONFIG__REMOTE_CONFIGS__WALLET_CONFIGS_FILE=/path/to/flags.json
 REMOTE_CONFIG__EXCHANGE_RATE__API_KEY=your-key
+REMOTE_CONFIG__RISK_CHECKER__ETHERSCAN_API_KEY=your-etherscan-key
+REMOTE_CONFIG__RISK_CHECKER__INFURA_API_KEY=your-infura-key
 ```
 
 ## Docker
@@ -101,6 +109,8 @@ cp wallet_config.example.json wallet_config.json
 docker build -t remote-config .
 docker run --rm -p 6767:6767 \
   -e REMOTE_CONFIG__EXCHANGE_RATE__API_KEY=your-key \
+  -e REMOTE_CONFIG__RISK_CHECKER__ETHERSCAN_API_KEY=your-etherscan-key \
+  -e REMOTE_CONFIG__RISK_CHECKER__INFURA_API_KEY=your-infura-key \
   -v "$(pwd)/wallet_config.json:/app/wallet_config.json:ro" \
   -v "$(pwd)/config/docker.toml:/app/config/docker.toml:ro" \
   remote-config
@@ -110,7 +120,7 @@ docker run --rm -p 6767:6767 \
 - Mount `wallet_config.json` at `/app/wallet_config.json` (path from the TOML)
 - Mount configs **read-only**; the image runs as uid `10001`
 - If host files are mode `0640`, run the container as the file owner (IAC pattern: set `user:` to the admin UID) so the process can read them
-- Set `REMOTE_CONFIG__EXCHANGE_RATE__API_KEY` (or put the key in the mounted TOML)
+- Set `REMOTE_CONFIG__EXCHANGE_RATE__API_KEY` and risk-checker keys (or put them in the mounted TOML)
 
 ## Development
 

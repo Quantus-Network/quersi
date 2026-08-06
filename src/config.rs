@@ -11,6 +11,7 @@ pub struct Config {
     pub logging: LoggingConfig,
     pub remote_configs: RemoteConfigsConfig,
     pub exchange_rate: ExchangeRateConfig,
+    pub risk_checker: RiskCheckerConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,6 +34,16 @@ pub struct RemoteConfigsConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExchangeRateConfig {
     pub api_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RiskCheckerConfig {
+    pub etherscan_api_key: String,
+    pub etherscan_base_url: String,
+    pub infura_api_key: String,
+    pub infura_base_url: String,
+    pub etherscan_calls_per_sec: u32,
+    pub max_concurrent_requests: usize,
 }
 
 impl Config {

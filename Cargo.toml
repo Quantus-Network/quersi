@@ -11,8 +11,10 @@ name = "remote-config"
 path = "src/main.rs"
 
 [dependencies]
+alloy = { version = "1.8", features = ["providers", "provider-http", "ens"] }
 anyhow = "1.0"
 axum = { version = "0.8", features = ["tokio"] }
+chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive"] }
 config = "0.14"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

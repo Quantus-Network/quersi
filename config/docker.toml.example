@@ -16,3 +16,12 @@ wallet_configs_file = "../wallet_config.json"
 # https://www.exchangerate-api.com/ — v6 key for latest/{base} rates
 # Prefer REMOTE_CONFIG__EXCHANGE_RATE__API_KEY in production.
 api_key = "change-me"
+
+[risk_checker]
+# Prefer REMOTE_CONFIG__RISK_CHECKER__ETHERSCAN_API_KEY / INFURA_API_KEY in production.
+etherscan_api_key = "change-me"
+etherscan_base_url = "https://api.etherscan.io/v2/api?chainid=1"
+infura_api_key = "change-me"
+infura_base_url = "https://mainnet.infura.io/v3"
+etherscan_calls_per_sec = 3
+max_concurrent_requests = 1

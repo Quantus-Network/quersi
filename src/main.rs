@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use remote_config::{build_router, Config, ExchangeRateService, WalletConfigService};
+use remote_config::{
+    build_router, Config, ExchangeRateService, RiskCheckerService, WalletConfigService,
+};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(Debug, Parser)]
@@ -29,8 +31,14 @@ async fn main() -> Result<()> {
             .context("initialize wallet config service")?,
     );
     let exchange_rate_service = Arc::new(ExchangeRateService::new(&config.exchange_rate.api_key));
+    let risk_checker_service = Arc::new(RiskCheckerService::new(&config.risk_checker));
 
-    let app = build_router(&config, wallet_config_service, exchange_rate_service);
+    let app = build_router(
+        &config,
+        wallet_config_service,
+        exchange_rate_service,
+        risk_checker_service,
+    );
     let address = config.get_server_address();
     let listener = tokio::net::TcpListener::bind(&address)
         .await

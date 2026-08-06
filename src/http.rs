@@ -5,24 +5,32 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{
     config::Config,
-    handlers::{handle_get_exchange_rate, handle_get_wallet_configs, handle_health},
-    services::{exchange_rate::ExchangeRateService, wallet_config::WalletConfigService},
+    handlers::{
+        handle_get_exchange_rate, handle_get_risk_report, handle_get_wallet_configs, handle_health,
+    },
+    services::{
+        exchange_rate::ExchangeRateService, risk_checker::RiskCheckerService,
+        wallet_config::WalletConfigService,
+    },
 };
 
 #[derive(Clone)]
 pub struct AppState {
     pub wallet_config_service: Arc<WalletConfigService>,
     pub exchange_rate_service: Arc<ExchangeRateService>,
+    pub risk_checker_service: Arc<RiskCheckerService>,
 }
 
 pub fn build_router(
     config: &Config,
     wallet_config_service: Arc<WalletConfigService>,
     exchange_rate_service: Arc<ExchangeRateService>,
+    risk_checker_service: Arc<RiskCheckerService>,
 ) -> Router {
     let state = AppState {
         wallet_config_service,
         exchange_rate_service,
+        risk_checker_service,
     };
 
     let origins = config.get_cors_allowed_origins();
@@ -36,6 +44,10 @@ pub fn build_router(
         .route("/health", get(handle_health))
         .route("/api/configs/wallet", get(handle_get_wallet_configs))
         .route("/api/exchange-rates", get(handle_get_exchange_rate))
+        .route(
+            "/api/risk-checker/{address_or_ens}",
+            get(handle_get_risk_report),
+        )
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
@@ -53,6 +65,10 @@ mod tests {
     use http_body_util::BodyExt;
     use tower::ServiceExt;
     use uuid::Uuid;
+    use wiremock::{
+        matchers::{method, query_param},
+        Mock, MockServer, ResponseTemplate,
+    };
 
     use crate::services::exchange_rate::ExchangeRateSnapshot;
 
@@ -65,6 +81,7 @@ mod tests {
 }"#;
 
     const MOCK_FUTURE_NEXT: i64 = 4_000_000_000;
+    const TEST_ADDRESS: &str = "0xd8da6bf26964af9d7eed9e03e53415d37aa96045";
 
     fn test_config() -> Config {
         Config {
@@ -81,6 +98,14 @@ mod tests {
             },
             exchange_rate: crate::config::ExchangeRateConfig {
                 api_key: "test-key".to_string(),
+            },
+            risk_checker: crate::config::RiskCheckerConfig {
+                etherscan_api_key: "test-key".to_string(),
+                etherscan_base_url: "http://unused".to_string(),
+                infura_api_key: "test-key".to_string(),
+                infura_base_url: "http://unused".to_string(),
+                etherscan_calls_per_sec: 3,
+                max_concurrent_requests: 1,
             },
         }
     }
@@ -104,10 +129,33 @@ mod tests {
         std::fs::write(&config_path, VALID_FLAGS).unwrap();
 
         let wallet_service = Arc::new(WalletConfigService::new(config_path).expect("service"));
+        let risk_checker_service = Arc::new(RiskCheckerService::new_with_base_url(
+            "http://unused",
+            "http://unused",
+        ));
         let app = build_router(
             &test_config(),
             wallet_service,
             cached_exchange_rate_service(),
+            risk_checker_service,
+        );
+        (app, dir)
+    }
+
+    async fn setup_app_with_risk_checker(
+        risk_checker_service: Arc<RiskCheckerService>,
+    ) -> (Router, std::path::PathBuf) {
+        let dir = std::env::temp_dir().join(format!("remote-config-http-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let config_path = dir.join("flags.json");
+        std::fs::write(&config_path, VALID_FLAGS).unwrap();
+
+        let wallet_service = Arc::new(WalletConfigService::new(config_path).expect("service"));
+        let app = build_router(
+            &test_config(),
+            wallet_service,
+            cached_exchange_rate_service(),
+            risk_checker_service,
         );
         (app, dir)
     }
@@ -174,6 +222,93 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[tokio::test]
+    async fn get_risk_report_rejects_invalid_input() {
+        let (app, dir) = setup_app().await;
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/risk-checker/not-valid-at-all")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["error"], "Invalid address or ENS name format");
+
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[tokio::test]
+    async fn get_risk_report_returns_data_envelope() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(query_param("module", "account"))
+            .and(query_param("action", "balance"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "status": "1",
+                "message": "OK",
+                "result": "1000000000000000000"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(query_param("module", "proxy"))
+            .and(query_param("action", "eth_getTransactionCount"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "status": "1",
+                "message": "OK",
+                "result": "0x0"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(query_param("module", "proxy"))
+            .and(query_param("action", "eth_getCode"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "status": "1",
+                "message": "OK",
+                "result": "0x"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let risk_checker_service = Arc::new(RiskCheckerService::new_with_base_url(
+            &mock_server.uri(),
+            "http://unused-infura",
+        ));
+        let (app, dir) = setup_app_with_risk_checker(risk_checker_service).await;
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/api/risk-checker/{TEST_ADDRESS}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["data"]["address"], TEST_ADDRESS);
+        assert_eq!(json["data"]["balance"], "1000000000000000000");
+        assert_eq!(json["data"]["balanceEth"], 1.0);
+        assert_eq!(json["data"]["hasOutgoingTransactions"], false);
+        assert_eq!(json["data"]["isSmartContract"], false);
+
         std::fs::remove_dir_all(dir).ok();
     }
 }
